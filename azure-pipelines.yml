@@ -1,0 +1,65 @@
+trigger:
+- master
+
+pool:
+  vmImage: 'windows-latest'
+
+name: 0.1$(Rev:.r)
+
+stages:
+- stage: Build
+  displayName: Build Stage
+  jobs:
+  - job: Build
+    steps:    
+    - task: UseDotNet@2
+      displayName: 'Use .Net 3.1.x'
+      inputs:
+        packageType: sdk
+        version: '3.1.x'
+    
+    - task: DotNetCoreCLI@2
+      displayName: 'Build Projects'
+      inputs:    
+        command: build
+        arguments: '--configuration Release --framework netcoreapp3.1'
+        projects: '**/**.csproj'
+        workingDirectory: '$(System.DefaultWorkingDirectory)'
+  
+    - task: VSTest@2
+      displayName: 'Run Integration Tests'
+      inputs:
+        testSelector: 'testAssemblies'
+        arguments: '/Framework:.NETCoreApp,Version=3.1'
+        testAssemblyVer2: |
+          **\*IntegrationTests.dll
+          !**\*TestAdapter.dll
+          !**\obj\**
+        searchFolder: '$(System.DefaultWorkingDirectory)'
+        vsTestVersion: '16.0'        
+
+- stage: Package
+  displayName: Package Stage
+  jobs:
+  - job: Package
+    steps:    
+    - task: UseDotNet@2
+      displayName: 'Use .Net 3.1.x'
+      inputs:
+        packageType: sdk
+        version: '3.1.x'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Publish Api'
+      inputs:    
+        command: publish
+        arguments: '--configuration Release --framework netcoreapp3.1 --output publish_output -p:Version=$(Build.BuildNumber)'
+        projects: 'src/MyProjects.Prototypes.IntegrationTests.Api/MyProjects.Prototypes.IntegrationTests.Api.csproj'
+        publishWebProjects: false
+        modifyOutputPath: true
+        zipAfterPublish: true
+    
+    - task: PublishBuildArtifacts@1
+      inputs:
+        PathtoPublish: '$(System.DefaultWorkingDirectory)/publish_output/'
+        ArtifactName: 'drop'
